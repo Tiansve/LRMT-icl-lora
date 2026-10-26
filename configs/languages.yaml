@@ -1,0 +1,29 @@
+# FLORES+ subsets used in the project. `name` is the language name used in prompts.
+
+# Candidate source languages; the final list is confirmed on 2026-11-01 after the pilot.
+sources:
+  - {code: swh_Latn, name: Swahili}
+  - {code: hau_Latn, name: Hausa}
+  - {code: yor_Latn, name: Yoruba}
+  - {code: quy_Latn, name: Quechua}
+  - {code: ayr_Latn, name: Aymara}
+  - {code: kaz_Cyrl, name: Kazakh}
+  - {code: khk_Cyrl, name: Mongolian}
+  - {code: uig_Arab, name: Uyghur}
+  - {code: amh_Ethi, name: Amharic}
+  - {code: tir_Ethi, name: Tigrinya}
+  - {code: dzo_Tibt, name: Dzongkha}
+  - {code: sat_Olck, name: Santali}
+
+# Used only to select LoRA hyperparameters; excluded from the RQ2 regression.
+heldout:
+  - {code: zul_Latn, name: Zulu}
+
+targets:
+  - {code: cmn_Hans, name: Chinese}  # main target
+  - {code: eng_Latn, name: English}  # control target (Qwen3-8B only)
+
+# Reference side for tokenizer parity and information parity.
+pivot: eng_Latn
+
+pilot: [swh_Latn, kaz_Cyrl, amh_Ethi, sat_Olck]

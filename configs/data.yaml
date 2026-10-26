@@ -1,0 +1,9 @@
+# FLORES+ on the Hugging Face Hub (gated; log in with `hf auth login` or set HF_TOKEN).
+# The revision is pinned so that local and UPPMAX runs read identical data.
+repo_id: openlanguagedata/flores_plus
+revision: 1147e2dc59f37fbb5c22fd8478770de02cd399f9
+
+# Split name -> expected number of sentences.
+splits:
+  dev: 997      # pool of parallel data (N = 50 / 200 / 997)
+  devtest: 1012 # test set

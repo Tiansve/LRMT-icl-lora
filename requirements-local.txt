@@ -1,0 +1,11 @@
+# Local development on Windows (CPU only): data preparation, tokenizer parity,
+# BM25 retrieval and an end-to-end smoke test with Qwen3-0.6B + transformers.
+#   pip install -r requirements-local.txt
+#   pip install -e .
+torch==2.14.1
+transformers==5.20.2
+accelerate==1.15.0
+huggingface_hub==2.3.0
+datasets==5.1.0
+rank-bm25==0.2.2
+-r requirements-analysis.txt

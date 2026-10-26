@@ -1,0 +1,28 @@
+info.txt
+.env
+
+# FLORES+ plain text must not be published (data, translations with sources/references)
+data/
+outputs/
+# Large artifacts
+adapters/
+
+# Slurm job logs
+slurm/logs/
+*.out
+*.err
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# IDE / OS
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
