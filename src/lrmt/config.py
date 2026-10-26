@@ -39,10 +39,18 @@ class ModelSpec:
 
 
 @dataclass(frozen=True)
+class PoolSpec:
+    split: str
+    sizes: tuple[int, ...]
+    seeds: tuple[int, ...]
+
+
+@dataclass(frozen=True)
 class DataSpec:
     repo_id: str
     revision: str
     splits: dict[str, int]  # split name -> expected number of sentences
+    pools: PoolSpec
 
 
 def load_yaml(name: str) -> dict[str, Any]:
@@ -53,7 +61,17 @@ def load_yaml(name: str) -> dict[str, Any]:
 @cache
 def data_spec() -> DataSpec:
     cfg = load_yaml("data.yaml")
-    return DataSpec(cfg["repo_id"], cfg["revision"], dict(cfg["splits"]))
+    splits = dict(cfg["splits"])
+    p = cfg["pools"]
+    pools = PoolSpec(p["split"], tuple(sorted(p["sizes"])), tuple(p["seeds"]))
+    if pools.split not in splits:
+        raise ValueError(f"pool split {pools.split!r} is not a configured split")
+    if not pools.seeds or len(set(pools.seeds)) != len(pools.seeds):
+        raise ValueError(f"pool seeds must be non-empty and unique: {pools.seeds}")
+    if (not pools.sizes or len(set(pools.sizes)) != len(pools.sizes)
+            or pools.sizes[0] < 1 or pools.sizes[-1] > splits[pools.split]):
+        raise ValueError(f"pool sizes must lie in 1..{splits[pools.split]}: {pools.sizes}")
+    return DataSpec(cfg["repo_id"], cfg["revision"], splits, pools)
 
 
 _ROLES = {"sources": "source", "heldout": "heldout", "targets": "target"}

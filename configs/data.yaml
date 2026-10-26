@@ -7,3 +7,11 @@ revision: 1147e2dc59f37fbb5c22fd8478770de02cd399f9
 splits:
   dev: 997      # pool of parallel data (N = 50 / 200 / 997)
   devtest: 1012 # test set
+
+# Nested data pools shared by all languages, ICL and LoRA (pools/seed{s}_N{n}.json).
+# Each seed shuffles the split's ids once; N50 is the prefix of N200. The largest size
+# is the whole split, so it is generated for the first seed only.
+pools:
+  split: dev
+  sizes: [50, 200, 997]
+  seeds: [1, 2, 3]

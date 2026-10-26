@@ -1,5 +1,6 @@
 info.txt
 .env
+/dev_logs
 
 # FLORES+ plain text must not be published (data, translations with sources/references)
 data/
