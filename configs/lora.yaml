@@ -1,0 +1,43 @@
+# QLoRA configuration (Stage 5 of the work plan).
+# Fixed settings apply to all runs; `rank`, `learning_rate` and `epochs_by_n`
+# are confirmed on the held-out language Zulu (zul_Latn) before the main runs.
+
+rank: 16
+alpha_ratio: 2          # lora_alpha = alpha_ratio * rank
+dropout: 0.05
+learning_rate: 2.0e-4
+
+target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+quantization:
+  quant_type: nf4
+  double_quant: true
+  compute_dtype: bfloat16
+
+training:
+  # Determined from exact token counts across all 13 languages on dev (max is 724 on
+  # Qwen3-8B and 1,051 on Llama-3.1-8B for dzo_Tibt); dynamic batch padding is used,
+  # so a 1088 ceiling adds zero overhead on shorter languages while avoiding truncation.
+  max_seq_length: 1088
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 2
+  warmup_ratio: 0.05
+  lr_scheduler_type: cosine
+  weight_decay: 0.0
+  epochs_by_n:
+    50: 10
+    200: 5
+    997: 3
+
+# Held-out hyperparameter search grid on zul_Latn (Stage 5).
+search_grid:
+  heldout_lang: zul_Latn
+  learning_rates: [1.0e-4, 2.0e-4]
+  ranks: [8, 16]

@@ -1,6 +1,7 @@
 info.txt
 .env
 /dev_logs
+PELLE_GUIDE.md
 
 # FLORES+ plain text must not be published (data, translations with sources/references)
 data/
@@ -8,8 +9,9 @@ outputs/
 # Large artifacts
 adapters/
 
-# Slurm job logs
-slurm/logs/
+# Slurm job logs (keep directory so sbatch -o slurm/logs/... never fails)
+slurm/logs/*
+!slurm/logs/.gitkeep
 *.out
 *.err
 

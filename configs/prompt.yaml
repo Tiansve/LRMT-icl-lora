@@ -1,0 +1,14 @@
+# Shared translation prompt template used across zero-shot, ICL and LoRA.
+# All systems share the exact same instruction and formatting so only the
+# adaptation strategy (in-context examples vs adapter weights) differs.
+
+instruction: "Translate the following {src_name} text into {tgt_instr_name}. Output only the translation."
+pair_template: "{src_name}: {src_text}\n{tgt_name}: {tgt_text}"
+query_template: "{src_name}: {src_text}\n{tgt_name}:"
+block_sep: "\n\n"
+
+# Language names used in the instruction sentence when they differ from Language.name
+# (labels in pair_template / query_template always use Language.name, e.g. "Chinese:").
+instruction_names:
+  cmn_Hans: Simplified Chinese
+  eng_Latn: English

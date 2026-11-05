@@ -53,6 +53,49 @@ class DataSpec:
     pools: PoolSpec
 
 
+@dataclass(frozen=True)
+class PromptSpec:
+    instruction: str
+    pair_template: str
+    query_template: str
+    block_sep: str
+    instruction_names: dict[str, str] = field(default_factory=dict)
+
+    def instruction_name(self, lang: Language) -> str:
+        return self.instruction_names.get(lang.code, lang.name)
+
+
+@dataclass(frozen=True)
+class LoraSpec:
+    rank: int
+    alpha_ratio: int
+    dropout: float
+    learning_rate: float
+    target_modules: tuple[str, ...]
+    quant_type: str
+    double_quant: bool
+    compute_dtype: str
+    max_seq_length: int
+    per_device_train_batch_size: int
+    gradient_accumulation_steps: int
+    warmup_ratio: float
+    lr_scheduler_type: str
+    weight_decay: float
+    epochs_by_n: dict[int, int]
+    heldout_lang: str
+    search_learning_rates: tuple[float, ...]
+    search_ranks: tuple[int, ...]
+
+    @property
+    def lora_alpha(self) -> int:
+        return self.alpha_ratio * self.rank
+
+    def epochs_for(self, n: int) -> int:
+        if n not in self.epochs_by_n:
+            raise KeyError(f"no epoch count configured for pool size N={n} in lora.yaml")
+        return self.epochs_by_n[n]
+
+
 def load_yaml(name: str) -> dict[str, Any]:
     with open(CONFIG_DIR / name, encoding="utf-8") as f:
         return yaml.safe_load(f)
@@ -103,6 +146,58 @@ def pivot_code() -> str:
     code = load_yaml("languages.yaml")["pivot"]
     language(code)  # must be one of the configured languages
     return code
+
+
+def source_languages(include_heldout: bool = False) -> list[Language]:
+    roles = {"source", "heldout"} if include_heldout else {"source"}
+    return [lang for lang in languages() if lang.role in roles]
+
+
+def pilot_codes() -> list[str]:
+    codes = list(load_yaml("languages.yaml")["pilot"])
+    for code in codes:
+        language(code)
+    return codes
+
+
+@cache
+def prompt_spec() -> PromptSpec:
+    cfg = load_yaml("prompt.yaml")
+    return PromptSpec(
+        instruction=cfg["instruction"],
+        pair_template=cfg["pair_template"],
+        query_template=cfg["query_template"],
+        block_sep=cfg["block_sep"],
+        instruction_names=dict(cfg.get("instruction_names") or {}),
+    )
+
+
+@cache
+def lora_spec() -> LoraSpec:
+    cfg = load_yaml("lora.yaml")
+    q = cfg["quantization"]
+    t = cfg["training"]
+    g = cfg["search_grid"]
+    return LoraSpec(
+        rank=int(cfg["rank"]),
+        alpha_ratio=int(cfg["alpha_ratio"]),
+        dropout=float(cfg["dropout"]),
+        learning_rate=float(cfg["learning_rate"]),
+        target_modules=tuple(cfg["target_modules"]),
+        quant_type=str(q["quant_type"]),
+        double_quant=bool(q["double_quant"]),
+        compute_dtype=str(q["compute_dtype"]),
+        max_seq_length=int(t["max_seq_length"]),
+        per_device_train_batch_size=int(t["per_device_train_batch_size"]),
+        gradient_accumulation_steps=int(t["gradient_accumulation_steps"]),
+        warmup_ratio=float(t["warmup_ratio"]),
+        lr_scheduler_type=str(t["lr_scheduler_type"]),
+        weight_decay=float(t["weight_decay"]),
+        epochs_by_n={int(k): int(v) for k, v in t["epochs_by_n"].items()},
+        heldout_lang=str(g["heldout_lang"]),
+        search_learning_rates=tuple(float(x) for x in g["learning_rates"]),
+        search_ranks=tuple(int(x) for x in g["ranks"]),
+    )
 
 
 def main_model_keys() -> list[str]:
