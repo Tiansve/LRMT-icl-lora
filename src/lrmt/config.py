@@ -17,6 +17,7 @@ INDICATOR_DIR = ROOT / "indicators"
 OUTPUT_DIR = ROOT / "outputs"
 ADAPTER_DIR = ROOT / "adapters"
 SCORE_DIR = ROOT / "scores"
+ANALYSIS_DIR = ROOT / "analysis"
 
 
 @dataclass(frozen=True)

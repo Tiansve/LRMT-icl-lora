@@ -31,6 +31,12 @@ ZEROSHOT_FIELDS = [
     "mean_prompt_tokens", "max_prompt_tokens",
 ]
 
+BOOTSTRAP_FIELDS = [
+    "model", "src", "tgt", "seed", "n", "k_mode", "icl_k", "n_sents",
+    "lora_chrf", "icl_chrf", "delta_chrf", "ci_low", "ci_high",
+    "p_value", "significant", "direction",
+]
+
 
 def discover_files() -> list[Path]:
     files: list[Path] = []
@@ -54,6 +60,8 @@ def main() -> int:
     parser.add_argument("--files", nargs="*", type=Path, help="specific jsonl files (default: all in outputs/)")
     parser.add_argument("--out", type=Path, default=config.SCORE_DIR / "scores.csv")
     parser.add_argument("--zeroshot-out", type=Path, default=None, help="default: indicators/zeroshot.csv on full scan")
+    parser.add_argument("--bootstrap-out", type=Path, default=None, help="default: scores/paired_bootstrap.csv on full scan")
+    parser.add_argument("--n-boot", type=int, default=1000, help="paired bootstrap resamples (default: 1000)")
     args = parser.parse_args()
 
     full_scan = args.files is None
@@ -64,6 +72,7 @@ def main() -> int:
 
     score_rows: list[dict] = []
     zeroshot_rows: list[dict] = []
+    path_by_name: dict[str, Path] = {p.name: p for p in files}
     for path in files:
         try:
             row = scoring.score_file(path)
@@ -103,6 +112,56 @@ def main() -> int:
     if zeroshot_rows and zs_out is not None:
         write_csv(zs_out, ZEROSHOT_FIELDS, zeroshot_rows)
         log.info("wrote %d zero-shot rows to %s", len(zeroshot_rows), zs_out)
+
+    # Compute paired bootstrap tests whenever matching LoRA and ICL files exist.
+    boot_out = args.bootstrap_out or (config.SCORE_DIR / "paired_bootstrap.csv" if full_scan else None)
+    lora_by_key = {
+        (r["model"], r["src"], r["tgt"], int(r["seed"]), int(r["n"])): r
+        for r in score_rows
+        if r["strategy"] == "lora"
+    }
+    icl_by_key: dict[tuple, list[dict]] = {}
+    for r in score_rows:
+        if r["strategy"] == "icl":
+            key = (r["model"], r["src"], r["tgt"], int(r["seed"]), int(r["n"]))
+            icl_by_key.setdefault(key, []).append(r)
+
+    boot_rows: list[dict] = []
+    if boot_out is not None and lora_by_key and icl_by_key:
+        for key, lora_row in sorted(lora_by_key.items()):
+            icl_candidates = icl_by_key.get(key)
+            if not icl_candidates:
+                continue
+            model, src, tgt, seed, n = key
+            lora_data = scoring.read_output_jsonl(path_by_name[str(lora_row["file"])])
+            lora_hyps = [r["translation"] for r in lora_data]
+            refs = [r["reference"] for r in lora_data]
+
+            # 1. Primary analysis: best k on test set (highest chrF, tie-break by smaller k).
+            best_icl = max(icl_candidates, key=lambda r: (float(r["chrf"]), -int(r["k"])))
+            modes: list[tuple[str, dict]] = [("best", best_icl)]
+            # 2. Robustness check: fixed k = 20.
+            k20_matches = [r for r in icl_candidates if int(r["k"]) == 20]
+            if k20_matches:
+                modes.append(("k20", k20_matches[0]))
+
+            for k_mode, icl_row in modes:
+                icl_data = scoring.read_output_jsonl(path_by_name[str(icl_row["file"])])
+                if len(icl_data) != len(lora_data):
+                    continue
+                icl_hyps = [r["translation"] for r in icl_data]
+                res = scoring.paired_bootstrap_chrf(
+                    lora_hyps, icl_hyps, refs, n_boot=args.n_boot, seed=seed
+                )
+                boot_rows.append({
+                    "model": model, "src": src, "tgt": tgt, "seed": seed, "n": n,
+                    "k_mode": k_mode, "icl_k": int(icl_row["k"]),
+                    **res,
+                })
+
+        if boot_rows:
+            write_csv(boot_out, BOOTSTRAP_FIELDS, boot_rows)
+            log.info("wrote %d paired bootstrap rows to %s", len(boot_rows), boot_out)
     return 0
 
 

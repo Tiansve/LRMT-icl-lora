@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import jieba
+import numpy as np
 from sacrebleu.metrics import BLEU, CHRF
 
 from lrmt import config
@@ -235,3 +236,71 @@ def score_file(path: Path) -> dict[str, str | int | float]:
         **metrics,
         "file": path.name,
     }
+
+
+def sentence_chrf(hyp: str, ref: str) -> float:
+    """Compute sentence-level chrF (word_order=0) for error analysis inspection."""
+    return round(float(_CHRF.sentence_score(hyp, [ref]).score), 4)
+
+
+def _chrf_segment_stats(hyps: Sequence[str], refs: Sequence[str]) -> np.ndarray:
+    """Extract the (n_sents, 18) sufficient-statistics matrix for sacreBLEU chrF."""
+    metric = CHRF(word_order=0, references=[list(refs)])
+    raw_stats = metric._extract_corpus_statistics(list(hyps), None)
+    return np.asarray(raw_stats, dtype=np.float64)
+
+
+def paired_bootstrap_chrf(
+    lora_hyps: Sequence[str],
+    icl_hyps: Sequence[str],
+    refs: Sequence[str],
+    *,
+    n_boot: int = 1000,
+    seed: int = 1,
+    alpha: float = 0.05,
+) -> dict[str, float | int | bool]:
+    """Paired bootstrap resampling (Koehn, 2004) for Delta = chrF(LoRA) - chrF(ICL)."""
+    if not (len(lora_hyps) == len(icl_hyps) == len(refs)) or not refs:
+        raise ValueError("lora_hyps, icl_hyps and refs must be non-empty and have equal length")
+
+    m = len(refs)
+    stats_lora = _chrf_segment_stats(lora_hyps, refs)
+    stats_icl = _chrf_segment_stats(icl_hyps, refs)
+
+    obs_lora = float(_CHRF._compute_f_score(stats_lora.sum(axis=0).tolist()))
+    obs_icl = float(_CHRF._compute_f_score(stats_icl.sum(axis=0).tolist()))
+    obs_delta = obs_lora - obs_icl
+
+    rng = np.random.default_rng(seed)
+    boot_indices = rng.integers(0, m, size=(n_boot, m))
+    boot_lora_sums = stats_lora[boot_indices].sum(axis=1)
+    boot_icl_sums = stats_icl[boot_indices].sum(axis=1)
+
+    boot_deltas = np.empty(n_boot, dtype=np.float64)
+    for b in range(n_boot):
+        s_lora = float(_CHRF._compute_f_score(boot_lora_sums[b].tolist()))
+        s_icl = float(_CHRF._compute_f_score(boot_icl_sums[b].tolist()))
+        boot_deltas[b] = s_lora - s_icl
+
+    # Two-sided paired bootstrap p-value: proportion of resamples where the sign flips or is 0.
+    le_zero = int(np.sum(boot_deltas <= 0.0))
+    ge_zero = int(np.sum(boot_deltas >= 0.0))
+    p_one = min((le_zero + 1) / (n_boot + 1), (ge_zero + 1) / (n_boot + 1))
+    p_value = min(1.0, 2.0 * p_one)
+
+    ci_low, ci_high = np.percentile(boot_deltas, [100 * (alpha / 2), 100 * (1.0 - alpha / 2)])
+    sig = bool(p_value < alpha and obs_delta != 0.0)
+    direction = (1 if obs_delta > 0 else -1) if sig else 0
+
+    return {
+        "n_sents": m,
+        "lora_chrf": round(obs_lora, 4),
+        "icl_chrf": round(obs_icl, 4),
+        "delta_chrf": round(obs_delta, 4),
+        "ci_low": round(float(ci_low), 4),
+        "ci_high": round(float(ci_high), 4),
+        "p_value": round(float(p_value), 4),
+        "significant": sig,
+        "direction": direction,
+    }
+
