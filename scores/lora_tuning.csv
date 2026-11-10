@@ -1,0 +1,13 @@
+model,src,tgt,seed,n,rank,learning_rate,chrf,bleu,chrfpp,off_target_rate
+qwen3-8b,zul_Latn,cmn_Hans,1,50,8,0.0001,11.0912,9.5544,12.8791,0.0089
+qwen3-8b,zul_Latn,cmn_Hans,1,50,8,0.0002,9.55,7.9486,11.3415,0.0059
+qwen3-8b,zul_Latn,cmn_Hans,1,50,16,0.0001,10.7951,8.8124,12.5383,0.0089
+qwen3-8b,zul_Latn,cmn_Hans,1,50,16,0.0002,10.147,8.3975,11.797,0.0148
+qwen3-8b,zul_Latn,cmn_Hans,1,200,8,0.0001,12.9799,11.4895,14.8485,0.0109
+qwen3-8b,zul_Latn,cmn_Hans,1,200,8,0.0002,12.5357,10.8345,14.3445,0.0099
+qwen3-8b,zul_Latn,cmn_Hans,1,200,16,0.0001,12.6864,10.9515,14.5426,0.0138
+qwen3-8b,zul_Latn,cmn_Hans,1,200,16,0.0002,11.7476,9.8788,13.5059,0.0089
+qwen3-8b,zul_Latn,cmn_Hans,1,997,8,0.0001,14.8284,13.6412,16.8137,0.0069
+qwen3-8b,zul_Latn,cmn_Hans,1,997,8,0.0002,14.5799,13.4947,16.597,0.0059
+qwen3-8b,zul_Latn,cmn_Hans,1,997,16,0.0001,14.7903,13.6744,16.8125,0.0079
+qwen3-8b,zul_Latn,cmn_Hans,1,997,16,0.0002,14.7863,13.4663,16.7563,0.0049

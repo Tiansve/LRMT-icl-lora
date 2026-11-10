@@ -3,7 +3,7 @@
 #SBATCH --gpus=l40s:1
 #SBATCH -c 3
 #SBATCH --mem=32G
-#SBATCH -t 03:30:00
+#SBATCH -t 05:00:00
 #SBATCH -J lrmt_lora
 #SBATCH -o slurm/logs/%x_%A_%a.out
 #SBATCH -e slurm/logs/%x_%A_%a.err

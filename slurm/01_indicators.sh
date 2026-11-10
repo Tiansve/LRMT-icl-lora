@@ -22,7 +22,7 @@ print_job_header
 activate_infer
 
 echo "[1/4] Computing Information Parity (dev, 997 sentences, English & Chinese pivots)..."
-python scripts/info_parity.py --models qwen3-8b llama3.1-8b --langs all
+# python scripts/info_parity.py (already complete) --models qwen3-8b llama3.1-8b --langs all
 
 echo "[2/4] Running Zero-Shot (k=0) into Simplified Chinese (devtest, 1012 sentences)..."
 python scripts/run_icl.py --model qwen3-8b --langs all-with-heldout --tgt cmn_Hans --k 0

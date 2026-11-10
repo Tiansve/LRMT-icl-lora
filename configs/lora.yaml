@@ -2,10 +2,10 @@
 # Fixed settings apply to all runs; `rank`, `learning_rate` and `epochs_by_n`
 # are confirmed on the held-out language Zulu (zul_Latn) before the main runs.
 
-rank: 16
+rank: 8
 alpha_ratio: 2          # lora_alpha = alpha_ratio * rank
 dropout: 0.05
-learning_rate: 2.0e-4
+learning_rate: 1.0e-4
 
 target_modules:
   - q_proj

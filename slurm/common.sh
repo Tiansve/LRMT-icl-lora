@@ -3,6 +3,8 @@
 # Do not submit this file directly with sbatch; it is sourced by slurm/0*.sh.
 
 set -euo pipefail
+module load Python/3.12.3-GCCcore-13.3.0 2>/dev/null || module load Python 2>/dev/null || true
+export TMPDIR="${SNIC_TMP:-/proj/uppmax2026-1-123/tiandu/RD_Prj/.tmp}"
 
 # Resolve repository root regardless of where sbatch was invoked from.
 if [[ -n "${SLURM_SUBMIT_DIR:-}" && -f "${SLURM_SUBMIT_DIR}/pyproject.toml" ]]; then
