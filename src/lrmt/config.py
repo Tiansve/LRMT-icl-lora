@@ -37,6 +37,7 @@ class ModelSpec:
     hf_id: str
     revision: str
     chat_template_kwargs: dict[str, Any] = field(default_factory=dict)
+    icl_multi_turn: bool = False
 
 
 @dataclass(frozen=True)
@@ -210,4 +211,10 @@ def model_spec(key: str) -> ModelSpec:
     if key not in models:
         raise KeyError(f"unknown model key: {key} (known: {', '.join(models)})")
     entry = models[key]
-    return ModelSpec(key, entry["hf_id"], entry["revision"], dict(entry.get("chat_template_kwargs") or {}))
+    return ModelSpec(
+        key,
+        entry["hf_id"],
+        entry["revision"],
+        dict(entry.get("chat_template_kwargs") or {}),
+        bool(entry.get("icl_multi_turn", False)),
+    )

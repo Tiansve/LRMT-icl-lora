@@ -12,6 +12,7 @@ models:
   llama3.1-8b:
     hf_id: meta-llama/Llama-3.1-8B-Instruct
     revision: 0e9e39f249a16976918f6564b8830bc894c89659
+    icl_multi_turn: true
   # Local CPU smoke tests of the pipeline only.
   qwen3-0.6b:
     hf_id: Qwen/Qwen3-0.6B

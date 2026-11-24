@@ -43,6 +43,8 @@ def plot_rq2_diagnostics(
     *,
     tgt_code: str,
     out_dir: Path,
+    stem_suffix: str = "",
+    title_tag: str = "",
 ) -> list[Path]:
     """Plot Panel A (LOLO Predicted vs Observed Delta) and Panel B (Standardized OLS Coefficients)."""
     if lolo_df.empty or coef_df.empty:
@@ -73,8 +75,9 @@ def plot_rq2_diagnostics(
     ax1.set_ylim(-lim, lim)
     ax1.set_xlabel("Observed $\\Delta$ = chrF(LoRA) - chrF(ICL)")
     ax1.set_ylabel("LOLO Predicted $\\hat{\\Delta}$")
+    tag = title_tag or tgt_code
     ax1.set_title(
-        f"A. LOLO Cross-Validation ({tgt_code})\n"
+        f"A. LOLO Cross-Validation ({tag})\n"
         f"Sign Acc={lolo_meta.get('sign_acc', 0):.1%} (Maj={lolo_meta.get('majority_sign_acc', 0):.1%}), "
         f"r={lolo_meta.get('pearson_r', 0):.2f}, PatMatch={lolo_meta.get('pattern_match_rate', 0):.1%}",
         fontsize=10,
@@ -101,15 +104,16 @@ def plot_rq2_diagnostics(
     ax2.set_yticklabels(sub_coef["term"].tolist(), fontsize=9)
     ax2.invert_yaxis()
     ax2.set_xlabel("Standardized Coefficient")
-    ax2.set_title(f"B. Standardized Predictors of $\\Delta$ ({tgt_code})", fontsize=10)
+    ax2.set_title(f"B. Standardized Predictors of $\\Delta$ ({tag})", fontsize=10)
     ax2.legend(loc="best", frameon=True, fontsize=8.5)
     ax2.grid(True, linestyle="--", alpha=0.3)
 
     fig.tight_layout()
     out_dir.mkdir(parents=True, exist_ok=True)
     saved: list[Path] = []
+    suffix = f"_{stem_suffix}" if stem_suffix else ""
     for ext in ("pdf", "png"):
-        p = out_dir / f"rq2_diagnostics_{tgt_code}.{ext}"
+        p = out_dir / f"rq2_diagnostics_{tgt_code}{suffix}.{ext}"
         fig.savefig(p, dpi=220, bbox_inches="tight")
         saved.append(p)
     plt.close(fig)
@@ -154,6 +158,14 @@ def run_rq2(
         return pd.DataFrame(), pd.DataFrame()
 
     rq2_raw = stats.build_rq2_dataset(obs_df, ind_df)
+    models_present = sorted(rq2_raw["model"].unique().tolist())
+    scopes: list[tuple[str, pd.DataFrame]] = []
+    if len(models_present) > 1:
+        for mkey in models_present:
+            scopes.append((mkey, rq2_raw[rq2_raw["model"] == mkey].reset_index(drop=True)))
+        scopes.append(("pooled", rq2_raw))
+    elif models_present:
+        scopes.append((models_present[0], rq2_raw))
 
     all_coefs: list[pd.DataFrame] = []
     lolo_summaries: list[dict[str, Any]] = []
@@ -163,50 +175,71 @@ def run_rq2(
     primary_coef_df = pd.DataFrame()
     primary_meta: dict[str, Any] = {}
 
-    for pivot in ("eng", "zh"):
-        feat_df = stats.prepare_rq2_features(rq2_raw, pivot=pivot)
-        if len(feat_df) < 6:
-            log.warning("insufficient non-null rows (%d) for RQ2 pivot=%s", len(feat_df), pivot)
-            continue
+    for scope_name, scope_raw in scopes:
+        for pivot in ("eng", "zh"):
+            feat_df = stats.prepare_rq2_features(scope_raw, pivot=pivot)
+            if len(feat_df) < 6:
+                log.warning("insufficient non-null rows (%d) for RQ2 scope=%s pivot=%s", len(feat_df), scope_name, pivot)
+                continue
 
-        for include_zs in (True, False):
-            coef_df, fit_meta = stats.fit_rq2_full_models(feat_df, include_zeroshot=include_zs)
-            coef_df.insert(0, "pivot", pivot)
-            coef_df.insert(1, "include_zeroshot", include_zs)
-            coef_df["r2"] = fit_meta["r2"]
-            coef_df["adj_r2"] = fit_meta["adj_r2"]
-            all_coefs.append(coef_df)
+            for include_zs in (True, False):
+                coef_df, fit_meta = stats.fit_rq2_full_models(feat_df, include_zeroshot=include_zs)
+                coef_df.insert(0, "model_scope", scope_name)
+                coef_df.insert(1, "pivot", pivot)
+                coef_df.insert(2, "include_zeroshot", include_zs)
+                coef_df["r2"] = fit_meta["r2"]
+                coef_df["adj_r2"] = fit_meta["adj_r2"]
+                all_coefs.append(coef_df)
 
-            for estimator in ("ols", "ridge"):
-                pred_df, lolo_sum = stats.run_lolo_cv(
-                    feat_df, include_zeroshot=include_zs, estimator=estimator
-                )
-                if not lolo_sum:
-                    continue
-                lolo_row = {
-                    "tgt": tgt_code,
-                    "pivot": pivot,
-                    **lolo_sum,
-                    "full_r2": fit_meta["r2"],
-                    "full_adj_r2": fit_meta["adj_r2"],
-                }
-                lolo_summaries.append(lolo_row)
-                pred_df.insert(0, "pivot", pivot)
-                pred_df.insert(1, "include_zeroshot", include_zs)
-                pred_df.insert(2, "estimator", estimator)
-                all_lolo_preds.append(pred_df)
+                for estimator in ("ols", "ridge"):
+                    pred_df, lolo_sum = stats.run_lolo_cv(
+                        feat_df, include_zeroshot=include_zs, estimator=estimator
+                    )
+                    if not lolo_sum:
+                        continue
+                    lolo_row = {
+                        "model_scope": scope_name,
+                        "tgt": tgt_code,
+                        "pivot": pivot,
+                        **lolo_sum,
+                        "full_r2": fit_meta["r2"],
+                        "full_adj_r2": fit_meta["adj_r2"],
+                    }
+                    lolo_summaries.append(lolo_row)
+                    pred_df.insert(0, "model_scope", scope_name)
+                    pred_df.insert(1, "pivot", pivot)
+                    pred_df.insert(2, "include_zeroshot", include_zs)
+                    pred_df.insert(3, "estimator", estimator)
+                    all_lolo_preds.append(pred_df)
 
-                log.info(
-                    "RQ2 LOLO [tgt=%s pivot=%-3s zs=%-5s %-5s]: sign_acc=%.3f (maj=%.3f logN=%.3f) r=%.3f pat_match=%.3f",
-                    tgt_code, pivot, str(include_zs), estimator,
-                    lolo_sum["sign_acc"], lolo_sum["majority_sign_acc"], lolo_sum["logn_only_sign_acc"],
-                    lolo_sum["pearson_r"], lolo_sum["pattern_match_rate"],
-                )
+                    log.info(
+                        "RQ2 LOLO [scope=%-11s tgt=%s pivot=%-3s zs=%-5s %-5s]: sign_acc=%.3f (maj=%.3f logN=%.3f) r=%.3f pat_match=%.3f",
+                        scope_name, tgt_code, pivot, str(include_zs), estimator,
+                        lolo_sum["sign_acc"], lolo_sum["majority_sign_acc"], lolo_sum["logn_only_sign_acc"],
+                        lolo_sum["pearson_r"], lolo_sum["pattern_match_rate"],
+                    )
 
-                if pivot == "eng" and include_zs and estimator == "ols":
-                    primary_lolo_df = pred_df
-                    primary_coef_df = coef_df
-                    primary_meta = lolo_sum
+                    if include_zs and estimator == "ols":
+                        # Save core Qwen3-8B plot and pooled plots for both pivots.
+                        if scope_name == "qwen3-8b" and pivot == "eng":
+                            if len(scopes) == 1:
+                                primary_lolo_df, primary_coef_df, primary_meta = pred_df, coef_df, lolo_sum
+                            else:
+                                plot_rq2_diagnostics(
+                                    pred_df, coef_df, lolo_sum,
+                                    tgt_code=tgt_code, out_dir=out_dir / "figures",
+                                    stem_suffix="qwen3-8b", title_tag=f"{tgt_code}, Qwen3-8B",
+                                )
+                        elif scope_name == "pooled" and pivot == "eng":
+                            primary_lolo_df, primary_coef_df, primary_meta = pred_df, coef_df, lolo_sum
+                        elif scope_name == "pooled" and pivot == "zh":
+                            plot_rq2_diagnostics(
+                                pred_df, coef_df, lolo_sum,
+                                tgt_code=tgt_code, out_dir=out_dir / "figures",
+                                stem_suffix="pooled_zh", title_tag=f"{tgt_code}, Pooled zh-pivot",
+                            )
+                        elif primary_lolo_df.empty and pivot == "eng":
+                            primary_lolo_df, primary_coef_df, primary_meta = pred_df, coef_df, lolo_sum
 
     if not all_coefs:
         return pd.DataFrame(), pd.DataFrame()

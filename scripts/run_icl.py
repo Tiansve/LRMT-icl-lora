@@ -82,16 +82,21 @@ def build_batch_messages(
     k: int,
     seed: int | None = None,
     retriever: retrieval.BM25Retriever | None = None,
-) -> list[list[dict[str, str]]]:
+    multi_turn: bool = False,
+) -> tuple[list[list[dict[str, str]]], list[list[tuple[str, str]]]]:
     messages_list: list[list[dict[str, str]]] = []
+    examples_list: list[list[tuple[str, str]]] = []
     for sent_id, src_text in enumerate(test_src):
         if k == 0:
             examples: list[tuple[str, str]] = []
         else:
             assert retriever is not None and seed is not None
             examples = retriever.retrieve_pairs(src_text, k, seed=seed, query_id=sent_id)
-        messages_list.append(prompt.build_messages(src_code, tgt_code, src_text, examples))
-    return messages_list
+        examples_list.append(examples)
+        messages_list.append(
+            prompt.build_messages(src_code, tgt_code, src_text, examples, multi_turn=multi_turn)
+        )
+    return messages_list, examples_list
 
 
 def main() -> int:
@@ -174,8 +179,9 @@ def main() -> int:
                     [dev_texts[src_code][i] for i in pids],
                     [dev_texts[args.tgt][i] for i in pids],
                 )
-            batch_msgs = build_batch_messages(
-                src_code, args.tgt, devtest_texts[src_code][:n_eval], k=k, seed=seed, retriever=retriever
+            batch_msgs, _ = build_batch_messages(
+                src_code, args.tgt, devtest_texts[src_code][:n_eval],
+                k=k, seed=seed, retriever=retriever, multi_turn=spec.icl_multi_turn,
             )
             lengths = [len(ids) for ids in generate.prepare_prompt_ids_batch(tokenizer, spec, batch_msgs)]
             log.info(
@@ -205,7 +211,10 @@ def main() -> int:
             retriever = retriever_cache[cache_key]
 
         test_src = devtest_texts[src_code][:n_eval]
-        batch_msgs = build_batch_messages(src_code, args.tgt, test_src, k=k, seed=seed, retriever=retriever)
+        batch_msgs, batch_exs = build_batch_messages(
+            src_code, args.tgt, test_src,
+            k=k, seed=seed, retriever=retriever, multi_turn=spec.icl_multi_turn,
+        )
         gen_results = gen.generate_batch(batch_msgs, max_new_tokens=args.max_new_tokens)
 
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -215,8 +224,8 @@ def main() -> int:
         n_trunc = 0
 
         with open(tmp_path, "w", encoding="utf-8", newline="\n") as f:
-            for sent_id, (src_text, ref_text, res) in enumerate(zip(test_src, test_refs, gen_results)):
-                hyp = prompt.clean_translation(res.raw_output, src_code, args.tgt)
+            for sent_id, (src_text, ref_text, exs, res) in enumerate(zip(test_src, test_refs, batch_exs, gen_results)):
+                hyp = prompt.clean_translation(res.raw_output, src_code, args.tgt, examples=exs)
                 hyps.append(hyp)
                 ptoks.append(res.prompt_tokens)
                 n_trunc += int(res.truncated)

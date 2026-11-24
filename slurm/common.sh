@@ -6,6 +6,9 @@ set -euo pipefail
 module load Python/3.12.3-GCCcore-13.3.0 2>/dev/null || module load Python 2>/dev/null || true
 export TMPDIR="${SNIC_TMP:-/proj/uppmax2026-1-123/tiandu/RD_Prj/.tmp}"
 
+# Ensure EasyBuild Python shared libraries (libpython3.12.so) are on LD_LIBRARY_PATH on compute nodes.
+module load Python/3.12.3-GCCcore-13.3.0 2>/dev/null || module load Python 2>/dev/null || true
+
 # Resolve repository root regardless of where sbatch was invoked from.
 if [[ -n "${SLURM_SUBMIT_DIR:-}" && -f "${SLURM_SUBMIT_DIR}/pyproject.toml" ]]; then
     export PROJECT_ROOT="${SLURM_SUBMIT_DIR}"
@@ -15,9 +18,12 @@ fi
 cd "${PROJECT_ROOT}"
 mkdir -p slurm/logs
 
-# Keep Hugging Face cache inside the project storage directory (not /home/$USER)
-# so 8B model weights do not exhaust the small home directory quota on UPPMAX.
+# Keep Hugging Face and pip caches inside the project storage directory (not /home/$USER or /tmp)
+# so 8B model weights and multi-GB CUDA wheels do not exhaust /home quota or login-node /tmp.
 export HF_HOME="${LRMT_HF_HOME:-${PROJECT_ROOT}/.hf_cache}"
+export PIP_CACHE_DIR="${LRMT_PIP_CACHE_DIR:-${PROJECT_ROOT}/.pip_cache}"
+export TMPDIR="${SNIC_TMP:-${PROJECT_ROOT}/.tmp}"
+mkdir -p "${HF_HOME}" "${PIP_CACHE_DIR}" "${TMPDIR}"
 export HF_HUB_DISABLE_SYMLINKS_WARNING=1
 export TOKENIZERS_PARALLELISM=false
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"

@@ -1,6 +1,6 @@
 # Scoring (chrF / BLEU / jieba chrF++), statistics and plots. Runs anywhere, no GPU.
 pandas==3.1.0
-numpy==2.5.4
+numpy>=2.1.0,<2.5
 scipy==1.18.1
 statsmodels==0.15.0
 scikit-learn==1.9.1
